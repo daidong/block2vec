@@ -1,0 +1,56 @@
+package trace.snia.ms;
+
+import java.io.*;
+
+/**
+ * Created by daidong on 7/5/15.
+ */
+public class MSTraceBlocks {
+    public static final int block_size = 4096;
+    public static final long block_window = 10000; //10,000 ms = 10 s
+
+    public static void main(String[] args) throws IOException, InterruptedException {
+        String file = args[0];
+        String outputfile = args[1];
+        BufferedReader br = new BufferedReader(new FileReader(file));
+        BufferedWriter bw = new BufferedWriter(new FileWriter(outputfile, true));
+        String line;
+        boolean dataBegin = false;
+        String sentence = "";
+        long sentence_ts = 0;
+        while ((line = br.readLine()) != null) {
+            if (line.startsWith("EndHeader"))
+                dataBegin = true;
+            if (!dataBegin)
+                continue;
+
+            String[] fields = line.split(",");
+            if (fields[0].equalsIgnoreCase("               DiskRead")){
+                long ts = Long.parseLong(fields[1].trim());
+                if (ts - sentence_ts > MSTraceBlocks.block_window){
+                    if (sentence.length() > 0){
+                        //System.out.println(sentence);
+                        bw.write(sentence+"\n");
+                        sentence = "";
+                    }
+                    sentence_ts = ts;
+                }
+                long byteOffset = Long.parseLong(fields[5].trim().substring(2), 16);
+                long ioSize = Long.parseLong(fields[6].trim().substring(2), 16);
+                int diskNum = Integer.parseInt(fields[8].trim());
+
+                //System.out.printf("timestamp: %d, offset: %d, size: %d, disk: %d\n",
+                //        ts, byteOffset, ioSize, diskNum);
+                int blockId = (int) (byteOffset / MSTraceBlocks.block_size);
+                int range = (int) (ioSize / MSTraceBlocks.block_size);
+                //for (int i = 0; i < range; i++){
+                    String word = String.format("%d:%d ", diskNum, (blockId));
+                    sentence += word;
+                //}
+            }
+        }
+        br.close();
+        bw.close();
+    }
+
+}
